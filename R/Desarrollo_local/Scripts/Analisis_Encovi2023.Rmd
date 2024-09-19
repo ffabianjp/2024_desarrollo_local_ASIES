@@ -1,0 +1,216 @@
+---
+title: "Analisis ENCOVI 2023"
+output: html_notebook
+---
+
+# Load packages and create functions
+
+```{r}
+library(readr)
+library(readxl)
+library(zoo)
+library(lubridate)
+library(dplyr)
+library(tidyr)
+library(haven)
+library(survey)
+```
+
+Function
+```{r}
+#Function to read excel files
+read_excels <- function(folder_path) {
+  # Get all the Excel file names in the folder
+  excel_files <- list.files(folder_path, pattern = "\\.xlsx$", full.names = TRUE)
+  
+  # Initialize an empty list to store the data
+  data_list <- list()
+  i=1
+  
+  # Loop over each Excel file and read it
+  for (file in excel_files) {
+    df_name <- paste0('df_', i)
+    # Read the Excel file and store it in the list
+    data_list[[df_name]] <- read_excel(file)
+    i=i+1
+  }
+  
+  # Return the list of data frames
+  return(data_list)
+}
+
+#Function to read .sav files SPSS
+read_savs <- function(folder_path) {
+  # Get all the Excel file names in the folder
+  sav_files <- list.files(folder_path, pattern = "\\.sav$", full.names = TRUE)
+  
+  # Initialize an empty list to store the data
+  data_list <- list()
+  i=1
+  
+  # Loop over each Excel file and read it
+  for (file in sav_files) {
+    df_name <- paste0('df_', i)
+    # Read the Excel file and store it in the list
+    data_list[[df_name]] <- read_sav(file)
+    i=i+1
+  }
+  
+  # Return the list of data frames
+  return(data_list)
+}
+```
+
+
+
+# Load data
+
+## Load dictionaries
+```{r}
+path <- "/Users/fabianjp/Documents/Work/ASIES/Desarrollo local/Data/Encovi 2023/Data/SAV"
+
+survey_dfs <- read_savs(path)
+```
+
+## Load sav files
+```{r}
+path <- "/Users/fabianjp/Documents/Work/ASIES/Desarrollo local/Data/Encovi 2023/Diccionario"
+
+dictionaries <- read_excels(path)
+```
+
+
+```{r}
+i=1
+for (df in survey_dfs){
+  print(paste0(i, ' length of ', (nrow(df) * length(df))/1000000))
+  i=i+1
+}
+
+View(survey_dfs$df_31)
+```
+
+df_31 has informatino about the person and has several important characteristics that we can use
+
+Select main tables
+```{r}
+personas <- survey_dfs$df_31
+```
+
+
+```{r}
+# Get a list of variable names
+variable_names <- names(personas)
+
+# Get the variable labels
+variable_labels <- sapply(personas, function(x) attr(x, "label"))
+
+# Combine them into a data frame for easy viewing
+variable_info <- data.frame(variable_names, variable_labels, stringsAsFactors = FALSE)
+
+# Print the first few rows to explore
+head(variable_info)
+
+```
+
+
+# Checks and survey analysis functions
+
+## Create variables
+
+```{r}
+personas <- personas %>%
+  mutate(edad_cat_1 = case_when(
+    PPA03 <= 17 ~ '0-17',
+    PPA03 <= 59 ~ '18-59',
+    PPA03 > 59 ~ '60 o mas',
+    TRUE ~ NA_character_  # Correct syntax for default missing value
+  ) %>% factor(levels = c('0-17', '18-59', '60 o mas')))
+
+personas$sexo <- as_factor(personas$PPA02)
+personas$departamento <- as_factor(personas$DEPTO)
+personas$pobres <- as_factor(personas$POBREZA)
+personas$educacion <- as_factor(personas$P06B26A)
+
+```
+
+### Subsets
+```{r}
+adultos <- subset(personas, PPA03 >= 18)
+
+```
+
+
+## Checks
+
+Verificar los pesos y si los resultados cuadran con los presentados por el INE en su presentación
+
+Pesos
+```{r}
+# Create a survey design object
+# Example: Assuming you have a data frame `mydata` with a weight column `weight_var`
+survey_design <- svydesign(ids = ~1,           # No clustering (use clustering variable if applicable)
+                           data = personas,      # Your data frame
+                           weights = ~FACTOR)  # Column with weights
+
+survey_design_adultos <- svydesign(ids = ~1,           # No clustering (use clustering variable if applicable)
+                           data = adultos,      # Your data frame
+                           weights = ~FACTOR)  # Column with weights
+```
+
+Variables descriptivas de la población
+```{r}
+#sexo
+svymean(~factor(PPA02), design = survey_design) #proporcion por sexo
+svymean(~sexo, design = survey_design) #proporcion por sexo
+
+#edad
+svyquantile(~PPA03, design = survey_design, c(0.5)) #edad media
+svymean(~factor(edad_cat_1), design = survey_design) #proporcion por edad
+
+#poblacion urbana-rural
+svymean(~factor(AREA), design = survey_design) #proporcion por urbano-rural
+
+#educacion
+svymean(~educacion, design = survey_design_adultos) #proporcion por educacion
+
+#pobreza
+svymean(~factor(POBREZA), design = survey_design) #proporcion por pobreza
+
+#departamento
+#svymean(~departamento, design = survey_design)
+svytotal(~departamento, design = survey_design) #poblacion por departamento
+
+```
+
+COntingency tables
+```{r}
+#Pobreza 
+svyby(~sexo, ~POBREZA, svymean, design = survey_design) #por sexo
+svyby(~factor(POBREZA), ~sexo, svymean, design = survey_design) #por sexo
+svyby(~pobres, ~departamento, svymean, design = survey_design) #por departamento
+
+
+#Edad
+svyby(~PPA03, ~departamento, svyquantile, design = survey_design, quantiles = 0.5, ci = TRUE)
+
+#Educacion
+svyby(~educacion, ~edad_cat_1, svymean, design = survey_design) #por sexo
+
+
+```
+
+
+
+# Variables de desarrollo
+
+Personas
+- Educacion
+- Edad
+- Empleo
+
+```{r}
+
+```
+
+
