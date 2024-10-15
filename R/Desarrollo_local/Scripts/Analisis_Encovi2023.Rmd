@@ -14,6 +14,8 @@ library(dplyr)
 library(tidyr)
 library(haven)
 library(survey)
+library(writexl)
+
 ```
 
 Function
@@ -148,7 +150,9 @@ Verificar los pesos y si los resultados cuadran con los presentados por el INE e
 Pesos
 ```{r}
 # Create a survey design object
-# Example: Assuming you have a data frame `mydata` with a weight column `weight_var`
+
+update_survey_design <- function() {
+  # Example: Assuming you have a data frame `mydata` with a weight column `weight_var`
 survey_design <- svydesign(ids = ~1,           # No clustering (use clustering variable if applicable)
                            data = personas,      # Your data frame
                            weights = ~FACTOR)  # Column with weights
@@ -156,6 +160,8 @@ survey_design <- svydesign(ids = ~1,           # No clustering (use clustering v
 survey_design_adultos <- svydesign(ids = ~1,           # No clustering (use clustering variable if applicable)
                            data = adultos,      # Your data frame
                            weights = ~FACTOR)  # Column with weights
+}
+
 ```
 
 Variables descriptivas de la población
@@ -183,7 +189,7 @@ svytotal(~departamento, design = survey_design) #poblacion por departamento
 
 ```
 
-COntingency tables
+Contingency tables
 ```{r}
 #Pobreza 
 svyby(~sexo, ~POBREZA, svymean, design = survey_design) #por sexo
@@ -209,8 +215,70 @@ Personas
 - Edad
 - Empleo
 
+Externalidades
+- 
+
+## Variables demograficas para el analisis
 ```{r}
+#demos
+personas$sexo <- as_factor(personas$PPA02)
+personas$departamento <- as_factor(personas$DEPTO)
+personas$pobres <- as_factor(personas$POBREZA)
+personas$educacion <- as_factor(personas$P06B26A)
+demos <- c('sexo', 'educacion')
+```
+
+## Variables de desarrollo
+Pobreza: utiliza tres escalas de pobreza basados en los umbrales del INE
+```{r}
+personas$pobreza <- as_factor(personas$POBREZA)
+```
+
+Participacion ciudadana
+Importante para el analisis comunitario
+```{r}
+#Participacion ciudadana
+#La persona participa en alguna asociacion de cualquier tipo
+personas$participacion_ciudadana <- as_factor(personas$P03B01)
+
+#participacion de enfasis comunitario economico -  la personas solo selecciona la principal
+personas <- personas %>% mutate(participacion_comunitaria_economica = case_when(
+  P03B03 %in% c(1,8,9,10,13,15,21,22,23,28) ~ 1,
+  is.na(P03B03) ~ NA_real_,
+  TRUE ~ 0
+))
+
+update_survey_design()
+variables_des <- c('pobreza', 'participacion_comunitaria_economica')
+```
+
+
+```{r}
+df_merge <- svyby(~pobres, ~departamento, svymean, design = survey_design) %>% 
+  mutate(pobreza_general = pobres0 + pobres1 + pobres2,
+         pobreza_extrema = pobres0 + pobres1) %>% select(departamento, pobreza_general, pobreza_extrema)
+
+df_merge <- df_merge %>% left_join(
+  svyby(~participacion_ciudadana, ~departamento, svymean, design = survey_design, na.rm = TRUE) %>%
+    rename(participacion_ciudadana = participacion_ciudadanaSi) %>%
+    select(departamento, participacion_ciudadana)
+)
+df_merge
 
 ```
 
 
+```{r}
+#Save excel to merge
+getwd()
+write.csv(df_merge, "/Users/fabianjp/Documents/Work/ASIES/Desarrollo local/Github/R/Desarrollo_local/Data/data_encovi.csv", row.names = FALSE)
+```
+
+
+```{r}
+variables_des <- c('pobreza', '')
+```
+
+
+
+Podemos entender un poco sobre las fuentes y recursos naturales presentes en las localidades?
