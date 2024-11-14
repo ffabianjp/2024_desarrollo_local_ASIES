@@ -178,8 +178,15 @@ svymean(~factor(edad_cat_1), design = survey_design) #proporcion por edad
 svymean(~factor(AREA), design = survey_design) #proporcion por urbano-rural
 
 #educacion
-svymean(~educacion, design = survey_design_adultos) #proporcion por educacion
+```
 
+
+```{r}
+svymean(~educacion, design = survey_design_adultos) #proporcion por educacion
+```
+
+
+```{r}
 #pobreza
 svymean(~factor(POBREZA), design = survey_design) #proporcion por pobreza
 
@@ -266,6 +273,43 @@ df_merge <- df_merge %>% left_join(
 df_merge
 
 ```
+```{r}
+# Fit the linear model
+model <- lm(pobreza_general ~ participacion_ciudadana, data = df_merge)
+
+# View the summary of the model
+summary(model)
+
+```
+
+
+```{r}
+ggplot(df_merge, aes(x = participacion_ciudadana, y = pobreza_general)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = TRUE, color = "blue") +
+  labs(title = "Pobreza y participación ciudadana",
+       x = "Participacion Ciudadana",
+       y = "Pobreza General") +
+  theme_minimal()
+```
+
+
+Educacion
+```{r}
+# Assuming svymean output is saved in a variable
+education_proportions <- svymean(~educacion, design = survey_design_adultos)
+
+# Convert to a data frame if necessary
+education_proportions_df <- as.data.frame(education_proportions)
+
+# Add a cumulative sum column
+education_proportions_df$cumulative_sum <- cumsum(education_proportions_df$mean)
+
+# View the result
+education_proportions_df
+
+```
+
 
 
 ```{r}
